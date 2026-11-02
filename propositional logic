@@ -1,0 +1,61 @@
+import itertools
+
+def implies(p, q):
+    return not p or q
+
+def evaluate_kb(p, q, r):
+    s1 = implies(q, p)       # Q -> P
+    s2 = implies(p, not q)   # P -> ~Q
+    s3 = q or r              # Q v R
+    return s1 and s2 and s3
+
+def main():
+    symbols = ['P', 'Q', 'R']
+    models = list(itertools.product([True, False], repeat=3))
+    
+    # Flags to track entailment
+    entails_ii = True   # R
+    entails_iii = True  # R -> P
+    entails_iv = True   # Q -> R
+
+    # Table Header
+    header = f"{'P':<6}{'Q':<6}{'R':<6}{'~Q':<6}{'S1':<6}{'S2':<6}{'S3':<6}{'KB':<8}{'Q(ii): R':<12}{'Q(iii): R->P':<14}{'Q(iv): Q->R':<12}"
+    print("=" * len(header))
+    print(header)
+    print("=" * len(header))
+
+    for p, q, r in models:
+        not_q = not q
+        s1 = implies(q, p)
+        s2 = implies(p, not_q)
+        s3 = q or r
+        kb = s1 and s2 and s3
+
+        # Queries
+        q_ii = r
+        q_iii = implies(r, p)
+        q_iv = implies(q, r)
+
+        # Check Entailment: If KB is True, Query must be True
+        if kb:
+            if not q_ii:
+                entails_ii = False
+            if not q_iii:
+                entails_iii = False
+            if not q_iv:
+                entails_iv = False
+
+        kb_str = f"{str(kb):<8}"
+        if kb:
+            kb_str = f"{str(kb)} (Model)"
+
+        print(f"{str(p):<6}{str(q):<6}{str(r):<6}{str(not_q):<6}{str(s1):<6}{str(s2):<6}{str(s3):<6}{kb_str:<15}{str(q_ii):<12}{str(q_iii):<14}{str(q_iv):<12}")
+
+    print("=" * len(header))
+    print("\n--- Entailment Results ---")
+    print(f"ii) KB |= R        : {'YES' if entails_ii else 'NO'}")
+    print(f"iii) KB |= R -> P  : {'YES' if entails_iii else 'NO'}")
+    print(f"iv) KB |= Q -> R   : {'YES' if entails_iv else 'NO'}")
+
+if __name__ == "__main__":
+    main()
