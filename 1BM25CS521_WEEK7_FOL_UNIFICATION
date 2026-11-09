@@ -1,0 +1,85 @@
+def is_variable(x):
+    return isinstance(x, str) and x.islower() and len(x) == 1
+
+def occurs_in(var, expr):
+    if var == expr:
+        return True
+    if isinstance(expr, tuple):
+        for arg in expr[1:]:
+            if occurs_in(var, arg):
+                return True
+    return False
+
+def apply_subst(subst, expr):
+    if isinstance(expr, str):
+        for var, val in subst:
+            if expr == var:
+                return val
+        return expr
+    elif isinstance(expr, tuple):
+        new_args = [apply_subst(subst, arg) for arg in expr[1:]]
+        return (expr[0], *new_args)
+    return expr
+
+def unify(psi1, psi2):
+    if isinstance(psi1, str) and isinstance(psi2, str):
+        if psi1 == psi2:
+            return []
+        elif is_variable(psi1):
+            if occurs_in(psi1, psi2):
+                return "FAILURE"
+            return [(psi1, psi2)]
+        elif is_variable(psi2):
+            if occurs_in(psi2, psi1):
+                return "FAILURE"
+            return [(psi2, psi1)]
+        else:
+            return "FAILURE"
+
+    if is_variable(psi1):
+        if occurs_in(psi1, psi2):
+            return "FAILURE"
+        return [(psi1, psi2)]
+
+    if is_variable(psi2):
+        if occurs_in(psi2, psi1):
+            return "FAILURE"
+        return [(psi2, psi1)]
+
+    if isinstance(psi1, tuple) and isinstance(psi2, tuple):
+        if psi1[0] != psi2[0] or len(psi1) != len(psi2):
+            return "FAILURE"
+
+        subst = []
+        l1 = list(psi1[1:])
+        l2 = list(psi2[1:])
+
+        for i in range(len(l1)):
+            s = unify(l1[i], l2[i])
+            if s == "FAILURE":
+                return "FAILURE"
+            if s:
+                l1 = [apply_subst(s, arg) for arg in l1]
+                l2 = [apply_subst(s, arg) for arg in l2]
+                subst.extend(s)
+
+        return subst
+
+    return "FAILURE"
+
+def to_str(expr):
+    if isinstance(expr, tuple):
+        return f"{expr[0]}({', '.join(to_str(a) for a in expr[1:])})"
+    return str(expr)
+
+exprA = ("Eats", "x", "Apple")
+exprB = ("Eats", "Riya", "y")
+
+subst = unify(exprA, exprB)
+
+if subst != "FAILURE":
+    exprA_unified = apply_subst(subst, exprA)
+    print(f'Unified Expression: Both expressions are now identical: "{to_str(exprA_unified)}".')
+    print(f'Unification is successful, and the unified expression is "{to_str(exprA_unified)}".')
+else:
+    print("Unification failed.")
