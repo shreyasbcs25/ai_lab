@@ -1,0 +1,164 @@
+import re
+from copy import deepcopy
+
+
+def is_variable(term):
+    return isinstance(term, str) and len(term) == 1 and term.islower()
+
+
+def parse_literal(literal_str):
+    literal_str = literal_str.strip()
+    negated = literal_str.startswith("¬") or literal_str.startswith("~")
+    if negated:
+        literal_str = literal_str[1:].strip()
+    match = re.match(r"(\w+)\s*\(([^)]+)\)", literal_str)
+    pred = match.group(1)
+    args = [arg.strip() for arg in match.group(2).split(",")]
+    return (negated, pred, args)
+
+
+def format_literal(lit):
+    neg, pred, args = lit
+    prefix = "¬ " if neg else ""
+    return f"{prefix}{pred}({', '.join(args)})"
+
+
+def format_clause(clause):
+    if not clause:
+        return "{  }  Hence proved."
+    return " ∨ ".join(format_literal(lit) for lit in clause)
+
+
+def format_subst(subst):
+    if not subst:
+        return ""
+    pairs = [f"{val}/{var}" for var, val in subst.items()]
+    return "{" + ", ".join(pairs) + "}"
+
+
+def unify(x, y, subst=None):
+    if subst is None:
+        subst = {}
+    if x == y:
+        return subst
+    if is_variable(x):
+        return unify_var(x, y, subst)
+    if is_variable(y):
+        return unify_var(y, x, subst)
+    if isinstance(x, list) and isinstance(y, list) and len(x) == len(y):
+        for a, b in zip(x, y):
+            subst = unify(a, b, subst)
+            if subst is None:
+                return None
+        return subst
+    return None
+
+
+def unify_var(var, x, subst):
+    if var in subst:
+        return unify(subst[var], x, subst)
+    if x in subst:
+        return unify(var, subst[x], subst)
+    new_subst = subst.copy()
+    new_subst[var] = x
+    return new_subst
+
+
+def substitute_literal(lit, subst):
+    neg, pred, args = lit
+    new_args = []
+    for arg in args:
+        while arg in subst:
+            arg = subst[arg]
+        new_args.append(arg)
+    return (neg, pred, new_args)
+
+
+def resolve(ci, cj):
+    resolvents = []
+    for i, lit_i in enumerate(ci):
+        for j, lit_j in enumerate(cj):
+            if lit_i[0] != lit_j[0] and lit_i[1] == lit_j[1]:
+                subst = unify(lit_i[2], lit_j[2])
+                if subst is not None:
+                    new_ci = [
+                        substitute_literal(l, subst)
+                        for idx, l in enumerate(ci)
+                        if idx != i
+                    ]
+                    new_cj = [
+                        substitute_literal(l, subst)
+                        for idx, l in enumerate(cj)
+                        if idx != j
+                    ]
+                    resolvent = []
+                    for l in new_ci + new_cj:
+                        if l not in resolvent:
+                            resolvent.append(l)
+                    resolvents.append((resolvent, subst))
+    return resolvents
+
+
+def print_cnf(kb_clauses, negated_goal):
+    print("Statements in CNF:")
+    for idx, clause in enumerate(kb_clauses, 1):
+        print(f"{idx}. {format_clause(clause)}")
+    print(f"\nNegated Goal in CNF:\n{format_clause(negated_goal)}\n")
+    print("-" * 65 + "\n")
+
+
+def print_resolution_tree(kb_clauses, negated_goal):
+    print_cnf(kb_clauses, negated_goal)
+
+    current_clause = deepcopy(negated_goal)
+    remaining_kb = [deepcopy(c) for c in kb_clauses]
+
+    while remaining_kb:
+        matched = False
+        for idx, kb_clause in enumerate(remaining_kb):
+            resolvents = resolve(current_clause, kb_clause)
+            if resolvents:
+                resolvent, subst = resolvents[0]
+                left_str = format_clause(current_clause)
+                right_str = format_clause(kb_clause)
+                subst_str = format_subst(subst)
+
+                print(f"{left_str:<32} {right_str}")
+                print("   \\                            /")
+                if subst_str:
+                    print(f"    \\                          /      {subst_str}")
+                else:
+                    print("    \\                          /")
+                print("     \\                        /")
+
+                current_clause = resolvent
+                remaining_kb.pop(idx)
+                matched = True
+
+                if not current_clause:
+                    print(f"          {format_clause(current_clause)}")
+                    return
+                break
+        if not matched:
+            break
+
+
+if __name__ == "__main__":
+    raw_kb = [
+        ["¬food(x)", "likes(John, x)"],
+        ["food(Apple)"],
+        ["food(Vegetables)"],
+        ["¬eats(y, z)", "killed(y)", "food(z)"],
+        ["eats(Anil, Peanuts)"],
+        ["alive(Anil)"],
+        ["¬eats(Anil, w)", "eats(Harry, w)"],
+        ["¬alive(k)", "¬killed(k)"],
+        ["killed(m)", "alive(m)"],
+    ]
+
+    raw_negated_goal = ["¬likes(John, Peanuts)"]
+
+    kb = [[parse_literal(lit) for lit in clause] for clause in raw_kb]
+    neg_goal = [parse_literal(lit) for lit in raw_negated_goal]
+
+    print_resolution_tree(kb, neg_goal)
