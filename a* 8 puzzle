@@ -84,3 +84,4 @@ if __name__ == "__main__":
             show(state, step)
         print(f"Solution cost (moves): {len(path) - 1}")
         print(f"Nodes expanded: {expanded}")
+print("Shreyas","1BM25CS521")
