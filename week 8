@@ -1,0 +1,107 @@
+def is_variable(x):
+    return isinstance(x, str) and x.islower()
+
+def unify(x, y, theta=None):
+    if theta is None:
+        theta = {}
+    if theta is None:
+        return None
+    if x == y:
+        return theta
+    if is_variable(x):
+        return unify_var(x, y, theta)
+    if is_variable(y):
+        return unify_var(y, x, theta)
+    if isinstance(x, tuple) and isinstance(y, tuple) and len(x) == len(y):
+        if x[0] != y[0]:
+            return None
+        for a, b in zip(x[1:], y[1:]):
+            theta = unify(a, b, theta)
+            if theta is None:
+                return None
+        return theta
+    return None
+
+def unify_var(var, x, theta):
+    if var in theta:
+        return unify(theta[var], x, theta)
+    if x in theta:
+        return unify(var, theta[x], theta)
+    new_theta = theta.copy()
+    new_theta[var] = x
+    return new_theta
+
+def subst(theta, expr):
+    if isinstance(expr, tuple):
+        return tuple(subst(theta, e) for e in expr)
+    if is_variable(expr) and expr in theta:
+        return subst(theta, theta[expr])
+    return expr
+
+counter = 0
+def standardize_variables(rule):
+    global counter
+    counter += 1
+    premises, conclusion = rule
+    mapping = {}
+    def replace(term):
+        if isinstance(term, tuple):
+            return tuple(replace(t) for t in term)
+        if is_variable(term):
+            if term not in mapping:
+                mapping[term] = f"{term}_{counter}"
+            return mapping[term]
+        return term
+    return ([replace(p) for p in premises], replace(conclusion))
+
+def fol_fc_ask(facts, rules, alpha):
+    kb_facts = set(facts)
+    while True:
+        new_facts = set()
+        for rule in rules:
+            premises, conclusion = standardize_variables(rule)
+            substitutions = [{}]
+            for premise in premises:
+                next_substitutions = []
+                for theta in substitutions:
+                    sub_premise = subst(theta, premise)
+                    for fact in kb_facts:
+                        new_theta = unify(sub_premise, fact, theta)
+                        if new_theta is not None:
+                            next_substitutions.append(new_theta)
+                substitutions = next_substitutions
+            for theta in substitutions:
+                q_prime = subst(theta, conclusion)
+                if q_prime not in kb_facts and q_prime not in new_facts:
+                    new_facts.add(q_prime)
+                    phi = unify(q_prime, alpha)
+                    if phi is not None:
+                        return True, phi, kb_facts | new_facts
+        if not new_facts:
+            return False, None, kb_facts
+        kb_facts |= new_facts
+
+facts = [
+    ("American", "Robert"),
+    ("Enemy", "A", "America"),
+    ("Owns", "A", "T1"),
+    ("Missile", "T1")
+]
+
+rules = [
+    ([("American", "p"), ("Weapon", "q"), ("Sells", "p", "q", "r"), ("Hostile", "r")], ("Criminal", "p")),
+    ([("Missile", "x"), ("Owns", "A", "x")], ("Sells", "Robert", "x", "A")),
+    ([("Missile", "x")], ("Weapon", "x")),
+    ([("Enemy", "x", "America")], ("Hostile", "x"))
+]
+
+query = ("Criminal", "Robert")
+
+result, substitution, inferred_kb = fol_fc_ask(facts, rules, query)
+
+print("Inferred Knowledge Base:")
+for fact in inferred_kb:
+    print(f"  {fact[0]}({', '.join(fact[1:])})")
+
+print(f"\nQuery: {query[0]}({', '.join(query[1:])})")
+print(f"Proven: {result}")
